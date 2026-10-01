@@ -7,22 +7,67 @@
     <style>
         * { margin: 0; padding: 0; background-color: #000; box-sizing: border-box; }
         body, html { width: 100%; height: 100%; overflow: hidden; display: flex; justify-content: center; align-items: center; position: relative; }
-        video { width: 100vw; height: 100vh; object-fit: cover; }
         
-        /* 반전 스타일 */
-        .flipped { transform: scaleX(-1); }
+        video { 
+            width: 100vw; 
+            height: 100vh; 
+            object-fit: cover; 
+            transition: transform 0.2s ease-in-out;
+        }
+        
+        /* 기본 화각 (살짝 확대) */
+        .zoom-narrow {
+            transform: scale(1.25);
+        }
 
-        /* 촬영 버튼 스타일 */
-        .btn-container {
+        /* 넓은 화각 (광각) */
+        .zoom-wide {
+            transform: scale(1);
+        }
+
+        /* 좌우 반전 겸용 */
+        .zoom-narrow.flipped {
+            transform: scale(-1.25, 1.25);
+        }
+
+        .zoom-wide.flipped {
+            transform: scaleX(-1);
+        }
+
+        /* 하단 조작 버튼 레이아웃 */
+        .controls {
             position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
+            bottom: 35px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-evenly;
+            align-items: center;
             z-index: 10;
         }
+
+        /* 화각 전환 버튼 */
+        .btn {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            outline: none;
+            backdrop-filter: blur(4px);
+        }
+
+        .btn:active {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* 촬영 버튼 */
         .capture-btn {
-            width: 70px;
-            height: 70px;
+            width: 72px;
+            height: 72px;
             border-radius: 50%;
             border: 4px solid #fff;
             background-color: rgba(255, 255, 255, 0.3);
@@ -31,38 +76,54 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: 0;
+            backdrop-filter: blur(2px);
         }
         .capture-btn:active {
+            transform: scale(0.92);
             background-color: rgba(255, 255, 255, 0.8);
-            transform: scale(0.95);
         }
         .inner-circle {
-            width: 50px;
-            height: 50px;
+            width: 52px;
+            height: 52px;
             border-radius: 50%;
             background-color: #fff;
         }
     </style>
 </head>
 <body>
-    <!-- 카메라 화면 (터치 시 반전) -->
-    <video id="mirror" autoplay playsinline onclick="toggleFlip()"></video>
+    <!-- 전면 카메라 화면 -->
+    <video id="mirror" class="zoom-wide" autoplay playsinline onclick="toggleFlip()"></video>
 
-    <!-- 촬영 버튼 -->
-    <div class="btn-container">
+    <!-- 하단 조작 버튼 -->
+    <div class="controls">
+        <button class="btn" onclick="toggleZoom()" id="zoomBtn">화각 전환</button>
+        
         <button class="capture-btn" onclick="takePhoto()">
             <div class="inner-circle"></div>
         </button>
+
+        <div style="width: 70px;"></div>
     </div>
 
-    <!-- 캡처용 캔버스 (숨김 처리) -->
     <canvas id="canvas" style="display: none;"></canvas>
 
     <script>
         const video = document.getElementById('mirror');
         const canvas = document.getElementById('canvas');
 
-        // 화면 터치 시 반전 전환
+        // 화각 전환 (기본 ↔ 넓게)
+        function toggleZoom() {
+            if (video.classList.contains('zoom-wide')) {
+                video.classList.remove('zoom-wide');
+                video.classList.add('zoom-narrow');
+            } else {
+                video.classList.remove('zoom-narrow');
+                video.classList.add('zoom-wide');
+            }
+        }
+
+        // 화면 터치 시 좌우 반전
         function toggleFlip() {
             video.classList.toggle('flipped');
         }
@@ -73,15 +134,15 @@
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
 
-            // 반전 상태 그대로 사진에 반영
+            context.save();
             if (video.classList.contains('flipped')) {
                 context.translate(canvas.width, 0);
                 context.scale(-1, 1);
             }
 
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            context.restore();
 
-            // 이미지 파일 생성 및 다운로드
             const image = canvas.toDataURL('image/png');
             const link = document.createElement('a');
             link.href = image;
@@ -89,9 +150,13 @@
             link.click();
         }
 
-        // 카메라 시작
+        // 전면 카메라 실행
         navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } },
+            video: { 
+                facingMode: "user", 
+                width: { ideal: 3840 }, 
+                height: { ideal: 2160 } 
+            },
             audio: false
         })
         .then(stream => { video.srcObject = stream; })
