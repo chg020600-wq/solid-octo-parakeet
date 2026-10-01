@@ -12,25 +12,10 @@
             width: 100vw; 
             height: 100vh; 
             object-fit: cover; 
-            transition: transform 0.2s ease-in-out;
-        }
-        
-        /* 기본 화각 (살짝 확대) */
-        .zoom-narrow {
-            transform: scale(1.25);
         }
 
-        /* 넓은 화각 (광각) */
-        .zoom-wide {
-            transform: scale(1);
-        }
-
-        /* 좌우 반전 겸용 */
-        .zoom-narrow.flipped {
-            transform: scale(-1.25, 1.25);
-        }
-
-        .zoom-wide.flipped {
+        /* 좌우 반전 처리 */
+        .flipped {
             transform: scaleX(-1);
         }
 
@@ -92,10 +77,8 @@
     </style>
 </head>
 <body>
-    <!-- 전면 카메라 화면 -->
-    <video id="mirror" class="zoom-wide" autoplay playsinline onclick="toggleFlip()"></video>
+    <video id="mirror" autoplay playsinline onclick="toggleFlip()"></video>
 
-    <!-- 하단 조작 버튼 -->
     <div class="controls">
         <button class="btn" onclick="toggleZoom()" id="zoomBtn">화각 전환</button>
         
@@ -111,16 +94,49 @@
     <script>
         const video = document.getElementById('mirror');
         const canvas = document.getElementById('canvas');
+        let videoTrack = null;
+        let isWide = true;
 
-        // 화각 전환 (기본 ↔ 넓게)
-        function toggleZoom() {
-            if (video.classList.contains('zoom-wide')) {
-                video.classList.remove('zoom-wide');
-                video.classList.add('zoom-narrow');
-            } else {
-                video.classList.remove('zoom-narrow');
-                video.classList.add('zoom-wide');
+        // 카메라 권한 및 스트림 연결
+        navigator.mediaDevices.getUserMedia({
+            video: { 
+                facingMode: "user", 
+                width: { ideal: 3840 }, 
+                height: { ideal: 2160 } 
+            },
+            audio: false
+        })
+        .then(stream => { 
+            video.srcObject = stream;
+            videoTrack = stream.getVideoTracks()[0];
+            
+            // 초기 설정: 하드웨어 최소 줌(가장 넓은 화각) 시도
+            applyHardwareZoom(true);
+        })
+        .catch(err => { alert("카메라 권한을 허용해 주세요."); });
+
+        // 하드웨어 렌즈 줌 조절 함수
+        function applyHardwareZoom(wide) {
+            if (!videoTrack) return;
+            const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+            
+            // 카메라 하드웨어가 줌을 지원할 경우
+            if (capabilities.zoom) {
+                const minZoom = capabilities.zoom.min || 1;
+                const maxZoom = capabilities.zoom.max || 1;
+                // 넓게(광각)일 땐 최소 줌, 아닐 땐 살짝 당긴 줌값 적용
+                const targetZoom = wide ? minZoom : minZoom + (maxZoom - minZoom) * 0.25;
+                
+                videoTrack.applyConstraints({
+                    advanced: [{ zoom: targetZoom }]
+                }).catch(e => console.log("하드웨어 줌 적용 불가"));
             }
+        }
+
+        // 화각 전환 버튼 눌렀을 때
+        function toggleZoom() {
+            isWide = !isWide;
+            applyHardwareZoom(isWide);
         }
 
         // 화면 터치 시 좌우 반전
@@ -128,7 +144,7 @@
             video.classList.toggle('flipped');
         }
 
-        // 사진 촬영 및 다운로드
+        // 사진 촬영
         function takePhoto() {
             const context = canvas.getContext('2d');
             canvas.width = video.videoWidth;
@@ -149,18 +165,6 @@
             link.download = `mirror_${Date.now()}.png`;
             link.click();
         }
-
-        // 전면 카메라 실행
-        navigator.mediaDevices.getUserMedia({
-            video: { 
-                facingMode: "user", 
-                width: { ideal: 3840 }, 
-                height: { ideal: 2160 } 
-            },
-            audio: false
-        })
-        .then(stream => { video.srcObject = stream; })
-        .catch(err => { alert("카메라 권한을 허용해 주세요."); });
     </script>
 </body>
 </html>
